@@ -1,0 +1,239 @@
+{
+  "format": "jcl-dependencies-lineage",
+  "job": "PAYRUN",
+  "isProc": false,
+  "source": "paycalc.jcl",
+  "note": "Job-level dataflow. Each step lists its inputs and outputs (DDs resolved to datasets); 'dataflow' is the producer->consumer edges across steps that no single-program view can see (step 1 writes a dataset step 2 reads). 'fieldLineage' is byte-field lineage from a utility control card: each output record field traced to the input bytes it copies (SORT BUILD/OUTREC), plus the filter (INCLUDE/OMIT COND) that decides which records survive. A DSN with a GDG relative generation is keyed on its base (the stable identity) with the generation recorded. 'conditions' on a step (and on the dataflow edges and ddBindings it contributes) say when it actually runs: 'if' is the IF/THEN/ELSE nesting (every test must hold, negated=true for an ELSE branch), 'cond' is the parsed COND= with its BYPASS sense spelt out ('runsWhen' is the negation a reader wants - COND is the back-to-front one). Nothing is invented - unresolved symbolics/PROCs and ambiguous OLD/I-O directions are in 'flags'. Where a step runs a COBOL program this tool analyses, the DD ddname is the join to that program's own interface/lineage: this view supplies the dataset its ddname was missing.",
+  "steps": [
+    {
+      "step": "PAYSTEP",
+      "program": "PAYCALC",
+      "inputs": [
+        {
+          "ddname": "STEPLIB",
+          "io": "input",
+          "dataset": "PROD.LOADLIB",
+          "disp": [
+            "SHR"
+          ],
+          "kind": "dataset"
+        },
+        {
+          "ddname": "CUSTMAST",
+          "io": "input",
+          "dataset": "PROD.CUSTOMER.MASTER",
+          "disp": [
+            "SHR"
+          ],
+          "kind": "dataset"
+        },
+        {
+          "ddname": "PAYHIST",
+          "io": "input",
+          "dataset": "PROD.PAYROLL.HISTORY",
+          "disp": [
+            "OLD"
+          ],
+          "kind": "dataset"
+        }
+      ],
+      "outputs": [
+        {
+          "ddname": "PAYRPT",
+          "io": "output",
+          "dataset": "PROD.PAYROLL.REPORT",
+          "disp": [
+            "NEW",
+            "CATLG",
+            "DELETE"
+          ],
+          "kind": "dataset"
+        },
+        {
+          "ddname": "SYSPRINT",
+          "io": "output",
+          "kind": "spool",
+          "sysout": "*"
+        }
+      ]
+    },
+    {
+      "step": "NEXTSTEP",
+      "program": "PAYNEXT",
+      "conditions": {
+        "cond": {
+          "raw": "(0,NE,PAYSTEP)",
+          "sense": "bypass-when-true",
+          "tests": [
+            {
+              "code": 0,
+              "op": "NE",
+              "step": "PAYSTEP"
+            }
+          ],
+          "bypassedWhen": "0 NE RC of PAYSTEP",
+          "runsWhen": "runs unless 0 NE RC of PAYSTEP"
+        }
+      },
+      "inputs": [
+        {
+          "ddname": "PAYRPT",
+          "io": "input",
+          "dataset": "PROD.PAYROLL.REPORT",
+          "disp": [
+            "SHR"
+          ],
+          "kind": "dataset"
+        }
+      ],
+      "outputs": [
+        {
+          "ddname": "SYSPRINT",
+          "io": "output",
+          "kind": "spool",
+          "sysout": "*"
+        }
+      ]
+    }
+  ],
+  "datasets": [
+    {
+      "dsn": "PROD.CUSTOMER.MASTER",
+      "producedBy": [],
+      "consumedBy": [
+        {
+          "step": "PAYSTEP",
+          "ddname": "CUSTMAST",
+          "disp": "SHR"
+        }
+      ],
+      "temporary": false,
+      "intermediate": false
+    },
+    {
+      "dsn": "PROD.LOADLIB",
+      "producedBy": [],
+      "consumedBy": [
+        {
+          "step": "PAYSTEP",
+          "ddname": "STEPLIB",
+          "disp": "SHR"
+        }
+      ],
+      "temporary": false,
+      "intermediate": false
+    },
+    {
+      "dsn": "PROD.PAYROLL.HISTORY",
+      "producedBy": [],
+      "consumedBy": [
+        {
+          "step": "PAYSTEP",
+          "ddname": "PAYHIST",
+          "disp": "OLD"
+        }
+      ],
+      "temporary": false,
+      "intermediate": false
+    },
+    {
+      "dsn": "PROD.PAYROLL.REPORT",
+      "producedBy": [
+        {
+          "step": "PAYSTEP",
+          "ddname": "PAYRPT",
+          "disp": "NEW"
+        }
+      ],
+      "consumedBy": [
+        {
+          "step": "NEXTSTEP",
+          "ddname": "PAYRPT",
+          "disp": "SHR"
+        }
+      ],
+      "temporary": false,
+      "intermediate": true
+    }
+  ],
+  "dataflow": [
+    {
+      "from": "PAYSTEP",
+      "to": "NEXTSTEP",
+      "dataset": "PROD.PAYROLL.REPORT",
+      "outDD": "PAYRPT",
+      "inDD": "PAYRPT",
+      "conditions": {
+        "consumer": {
+          "cond": {
+            "raw": "(0,NE,PAYSTEP)",
+            "sense": "bypass-when-true",
+            "tests": [
+              {
+                "code": 0,
+                "op": "NE",
+                "step": "PAYSTEP"
+              }
+            ],
+            "bypassedWhen": "0 NE RC of PAYSTEP",
+            "runsWhen": "runs unless 0 NE RC of PAYSTEP"
+          }
+        }
+      }
+    }
+  ],
+  "fieldLineage": [],
+  "ddBindings": [
+    {
+      "program": "PAYCALC",
+      "step": "PAYSTEP",
+      "ddname": "STEPLIB",
+      "dataset": "PROD.LOADLIB",
+      "io": "input"
+    },
+    {
+      "program": "PAYCALC",
+      "step": "PAYSTEP",
+      "ddname": "CUSTMAST",
+      "dataset": "PROD.CUSTOMER.MASTER",
+      "io": "input"
+    },
+    {
+      "program": "PAYCALC",
+      "step": "PAYSTEP",
+      "ddname": "PAYHIST",
+      "dataset": "PROD.PAYROLL.HISTORY",
+      "io": "input"
+    },
+    {
+      "program": "PAYCALC",
+      "step": "PAYSTEP",
+      "ddname": "PAYRPT",
+      "dataset": "PROD.PAYROLL.REPORT",
+      "io": "output"
+    },
+    {
+      "program": "PAYNEXT",
+      "step": "NEXTSTEP",
+      "ddname": "PAYRPT",
+      "dataset": "PROD.PAYROLL.REPORT",
+      "io": "input",
+      "conditions": {
+        "cond": {
+          "raw": "(0,NE,PAYSTEP)",
+          "sense": "bypass-when-true",
+          "tests": [
+            {
+              "code": 0,
+              "op": "NE",
+              "step": "PAYSTEP"
+            }
+          ],
+          "bypassedWhen": "0 NE RC of PAYSTEP",
+          "runsWhen": "runs unless 0 NE RC of PAYSTEP"
+        }
+      }
+    }
+  ],
+  "flags": []
+}

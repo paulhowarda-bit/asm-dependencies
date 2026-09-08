@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "asm-dependencies"
+version = "0.1.0"
+description = "Parse IBM mainframe assembler (HLASM): the entry points a module provides, the modules it calls, the ddnames it opens, and the manifest of everything it depends on."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Paul Howard" }]
+keywords = ["assembler", "hlasm", "mainframe", "modernization", "dependencies", "parser"]
+
+# Core ONLY - never cobol-xstate, never jcl-dependencies, never eztrieve-dependencies.
+# The COBOL says what a program does, the JCL says which dataset a ddname is, the
+# Easytrieve says which bytes become which, and this says what a module calls and what it
+# is callable AS. Four peers that meet at plain manifest dicts, so an assembler install
+# carries none of the others. tests/test_boundaries.py enforces it.
+dependencies = ["mainframe-artifacts>=0.1,<0.2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+asm-dependencies = "asm_dependencies.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Put the src/ layout on sys.path so `python -m pytest` works without installing the
+# package (pytest >= 7). mainframe-artifacts arrives installed or via the sibling
+# mainframe-common checkout (tests/_mainframe_common.py; override MAINFRAME_COMMON_REPO).
+pythonpath = ["src", "tests"]

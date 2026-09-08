@@ -1,0 +1,23 @@
+# Every text file checks out with LF, on every platform.
+#
+# This is not a style preference - it is what makes the byte-stability ratchet mean
+# anything. A member resolved from the local search path is read as BYTES and its length
+# goes into the retrieval report (`bytes: 128`). Left to git's autocrlf, a Windows checkout
+# gets CRLF and every one of those counts is two bytes per line larger than the same
+# checkout on Linux - so `tools/byteproof.py --check` fails on a clone that changed
+# nothing, and the reports this tool emits would differ by where it was cloned.
+#
+# Mainframe members are fixed-format source besides, where a byte count is a fact about the
+# member rather than an artifact of the filesystem it landed on.
+* text=auto eol=lf
+
+# Belt and braces for the files whose exact bytes are the contract.
+*.py      text eol=lf
+*.asm     text eol=lf
+*.mac     text eol=lf
+*.cpy     text eol=lf
+*.jcl     text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.toml    text eol=lf
+*.sha256  text eol=lf

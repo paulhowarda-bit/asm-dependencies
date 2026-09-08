@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Tooling
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Claude Code (personal, per-developer settings)
+.claude/settings.json
+.claude/settings.local.json
+
+# Generated output. A run writes everything into --outdir, which defaults to ./out.
+out/
+# ...and these cover a run pointed somewhere else, e.g. --outdir .
+*.asm.artifacts.json
+*.asm.lineage.json
+*.asm.prefetch.json
+*.asm.fetch.json
+
+# NOTE: goldens/, examples/ and tests/fixtures/ are deliberately NOT ignored. The goldens
+# are the byte-stability ratchet, the shipped COPY members are what the examples resolve
+# against, and the committed JCL lineage view is this repository's half of a
+# cross-repository contract - all three are worthless if they are not tracked.
+# tests/fixtures/paycalc.jcl.lineage.json in particular is NOT run output despite looking
+# like it: it is regenerated deliberately by tools/refresh_fixture.py --record, from a real
+# jcl-dependencies run over examples/paycalc.jcl.
