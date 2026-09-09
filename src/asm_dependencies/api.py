@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional, Sequence
+from typing import Any, Callable, Dict, Optional, Sequence
 
 from mainframe_artifacts.bundle import EstateBundle, recording_fetcher, write_bundle
 from mainframe_artifacts.fetch import fetch_dependencies
 from mainframe_artifacts.prefetch import PrefetchResult
 from mainframe_artifacts.profiling import StageTimer
+from mainframe_artifacts.synonyms import SynonymLookup
 
 from .lexer import Margins
 from .model import Module
@@ -33,6 +34,9 @@ class ModuleAnalysis:
     prefetch: PrefetchResult
     source_name: str = "<asm>"
     fetch: Optional[dict] = None
+    #: Db2 SYNONYM/ALIAS knowledge (a map, a host resolver, or both) - None when the
+    #: run opened neither door, and then every table is reported as written.
+    synonyms: Optional[SynonymLookup] = None
 
     _lineage: Optional[dict] = field(default=None, repr=False)
     _artifacts: Optional[dict] = field(default=None, repr=False)
@@ -46,7 +50,7 @@ class ModuleAnalysis:
     def artifacts(self) -> dict:
         """The manifest: what this module provides, and everything it depends on."""
         if self._artifacts is None:
-            self._artifacts = build_asm_artifacts(self.module)
+            self._artifacts = build_asm_artifacts(self.module, synonyms=self.synonyms)
         return self._artifacts
 
     def bind(self, jcl_lineage: dict, *, steps: Sequence[str] = ()) -> dict:
@@ -69,6 +73,8 @@ def analyze(source: str, *, source_name: str = "<asm>",
             exts: Sequence[str] = (),
             max_rounds: int = 12, jobs: int = 1,
             timer: Optional[StageTimer] = None,
+            synonyms: Optional[Dict[str, str]] = None,
+            synonym_resolver: Optional[Callable[[str], Optional[str]]] = None,
             ) -> ModuleAnalysis:
     """Retrieve, parse and model one assembler module.
 
@@ -104,7 +110,10 @@ def analyze(source: str, *, source_name: str = "<asm>",
         module = parse_asm(source, resolver=pre.resolver(), source_name=source_name,
                            program_name=program_name, margins=margins, sysparm=sysparm)
 
-    analysis = ModuleAnalysis(module=module, prefetch=pre, source_name=source_name)
+    lookup = (SynonymLookup(synonyms, synonym_resolver)
+              if (synonyms or synonym_resolver is not None) else None)
+    analysis = ModuleAnalysis(module=module, prefetch=pre, source_name=source_name,
+                              synonyms=lookup)
     with timer.stage("asm-lineage"):
         analysis.lineage()
     with timer.stage("asm-artifacts"):

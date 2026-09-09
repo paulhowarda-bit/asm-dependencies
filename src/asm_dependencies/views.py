@@ -31,6 +31,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence
 
+from mainframe_artifacts.synonyms import FROM_MAP
+
 from . import classify
 from .model import (
     EVIDENCE_DYNAMIC, EVIDENCE_LITERAL, EVIDENCE_TABLE, LAYOUT_REFS, Module,
@@ -93,14 +95,18 @@ def _touch(line: int, origin: Optional[str]) -> dict:
 
 # -- the artifacts view ------------------------------------------------------------
 
-def build_asm_artifacts(module: Module) -> dict:
-    """The manifest: one row per artifact, deduplicated, with how each was established."""
+def build_asm_artifacts(module: Module, synonyms=None) -> dict:
+    """The manifest: one row per artifact, deduplicated, with how each was established.
+
+    ``synonyms`` is optional Db2 SYNONYM/ALIAS knowledge (a ``SynonymLookup``). Without
+    it every table is reported exactly as the source wrote it, which is honest but
+    leaves a synonym looking like a table."""
     artifacts: List[dict] = []
     excluded: List[dict] = []
 
     _programs(module, artifacts, excluded)
     _files(module, artifacts)
-    _resources(module, artifacts, excluded)
+    _resources(module, artifacts, excluded, synonyms)
     _members(module, artifacts, excluded)
 
     artifacts.sort(key=lambda r: (_CLASS_ORDER.get(r["kind"], 9), r["artifact"]))
@@ -115,7 +121,11 @@ def build_asm_artifacts(module: Module) -> dict:
         "artifacts": artifacts,
         "candidates": _candidates(module),
         "excluded": excluded,
-        "flags": list(module.flags),
+        "flags": list(module.flags) + (
+            [("synonym resolver failed mid-run ({0}); synonyms it did not reach stay "
+              "unresolved - fix the resolver and re-run").format(
+                  synonyms.disabled_reason)]
+            if synonyms is not None and synonyms.disabled_reason else []),
     }
 
 
@@ -338,7 +348,10 @@ def _merge_io(current: str, incoming: str) -> str:
 _RESOURCE_IDENTITY = {
     "db2-table": ("global", "the DDL or DCLGEN that declares it",
                   "none - a qualified table name is the catalog-global identity; an "
-                  "unqualified one is completed by the bind's QUALIFIER, not here"),
+                  "unqualified one is completed by the bind's QUALIFIER, not here. "
+                  "Written under a Db2 ALIAS or SYNONYM the name is the alias - the "
+                  "base table is catalog knowledge, supplied through --synonym-map / "
+                  "--synonym-resolver, and reported as baseTable"),
     "terminal-map": ("global", "the BMS mapset the map belongs to",
                      "the BMS macro source (DFHMSD/DFHMDI/DFHMDF) - the mapset is a load "
                      "module, and its symbolic map is a separate copybook"),
@@ -367,8 +380,17 @@ _IMS_KINDS = {
 }
 
 
-def _resources(module: Module, artifacts: List[dict], excluded: List[dict]) -> None:
-    """CICS, Db2 and IMS resources, merged by (kind, name) the way programs are."""
+def _resources(module: Module, artifacts: List[dict], excluded: List[dict],
+               synonyms=None) -> None:
+    """CICS, Db2 and IMS resources, merged by (kind, name) the way programs are.
+
+    ``synonyms`` is Db2 SYNONYM/ALIAS knowledge the caller holds
+    (``mainframe_artifacts.synonyms.SynonymLookup``: a map, a host resolver, or both).
+    Every ``db2-table`` row is asked of it, because a table name is this view's whole
+    statement about the table, and a row written under a synonym gains ``baseTable``.
+    The name as written stays the artifact - an assembler module naming a synonym is a
+    fact about that module, the same way ``evidence`` records how a name was established
+    rather than only its end state."""
     rows: Dict[tuple, dict] = {}
     for ref in module.resources:
         if ref.kind in _IMS_KINDS:
@@ -409,6 +431,18 @@ def _resources(module: Module, artifacts: List[dict], excluded: List[dict]) -> N
             row["dynamic"] = True
         row["touchedBy"].append({**_touch(ref.line, ref.origin), "verb": ref.verb})
         _stamp_conditions(row, ref.conditions)
+    if synonyms is not None:
+        for (kind, name), row in rows.items():
+            if kind != "db2-table":
+                continue
+            hit = synonyms(name)
+            if hit is not None:
+                # A synonym's base is what the DDL declares and what cross-program
+                # identity joins on; which door said so is provenance a reader may need.
+                base, door = hit
+                row["baseTable"] = base
+                row["resolvedVia"] = ("synonym map" if door == FROM_MAP
+                                      else "catalog resolver")
     artifacts.extend(rows[key] for key in sorted(rows))
 
 

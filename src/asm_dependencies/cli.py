@@ -12,7 +12,8 @@ from typing import List, Optional
 from mainframe_artifacts.artifact_service import decode_member, load_fetcher
 from mainframe_artifacts.bundle import open_bundle
 from mainframe_artifacts.cliargs import (add_logging_args, add_output_args,
-                                         add_retrieval_args, jobs as _jobs)
+                                         add_retrieval_args, add_synonym_args,
+                                         jobs as _jobs, synonym_lookup)
 from mainframe_artifacts.errors import CobolXstateError
 from mainframe_artifacts.logging_setup import PACKAGE_LOGGER as CORE_LOGGER
 from mainframe_artifacts.logging_setup import configure_logging
@@ -88,6 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "module; hitting the bound is REPORTED, never silently treated as "
                         "a complete closure.")
     add_retrieval_args(p)
+    add_synonym_args(p)
     add_output_args(p, outdir_help=(
         "directory for output (default: ./out). EVERY file this run produces goes here, "
         "exactly as given with nothing appended - both views, both retrieval reports, and "
@@ -199,6 +201,11 @@ def _run(args, timing_sink=None) -> int:
                 jcl_path, exc))
             return 2
 
+    lookup, why_synonyms = synonym_lookup(args)
+    if why_synonyms:
+        _log.error(f"error: {why_synonyms}")
+        return 2
+
     fetcher, why_service = (None, None) if bundle is not None \
         else _service(args, source_name)
 
@@ -228,7 +235,9 @@ def _run(args, timing_sink=None) -> int:
                        unavailable=why_service, program_name=args.program_name,
                        margins=margins, sysparm=args.sysparm,
                        exts=tuple(args.macro_ext), max_rounds=args.max_rounds,
-                       jobs=_jobs(args), timer=timer)
+                       jobs=_jobs(args), timer=timer,
+                       synonyms=lookup.mapping if lookup is not None else None,
+                       synonym_resolver=lookup.resolver if lookup is not None else None)
     module = analysis.module
     base = default_stem or module.name or "module"
 
