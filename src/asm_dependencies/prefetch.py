@@ -54,7 +54,8 @@ def prefetch_asm(source: str, fetcher: Optional[Callable],
                  jobs: int = 1,
                  exts: Sequence[str] = (),
                  sysparm: Optional[str] = None,
-                 seen: Optional[Iterable[str]] = None) -> PrefetchResult:
+                 seen: Optional[Iterable[str]] = None,
+                 producer: Optional[str] = None) -> PrefetchResult:
     """Close over the members a module needs, by replaying the parse until it stops asking.
 
     No type hint is passed: the estate service auto-detects, and its ``detected_type`` is a
@@ -67,7 +68,8 @@ def prefetch_asm(source: str, fetcher: Optional[Callable],
     the conservative direction.
     """
     pf = Prefetcher(fetcher, paths, dest, unavailable, result,
-                    exts=tuple(exts) + MACRO_EXTS, seen=seen)
+                    exts=tuple(exts) + MACRO_EXTS, seen=seen,
+                    producer=producer)
     pf.name_source(source_name)
 
     # COPY members are closed FIRST, and only then are unknown operations treated as

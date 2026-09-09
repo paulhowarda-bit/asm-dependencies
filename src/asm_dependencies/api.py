@@ -17,6 +17,7 @@ from mainframe_artifacts.prefetch import PrefetchResult
 from mainframe_artifacts.profiling import StageTimer
 from mainframe_artifacts.synonyms import SynonymLookup
 
+from . import PRODUCER
 from .lexer import Margins
 from .model import Module
 from .parser import parse_asm
@@ -105,7 +106,7 @@ def analyze(source: str, *, source_name: str = "<asm>",
         pre = prefetch_asm(source, fetcher, paths=list(paths), dest=dest,
                            source_name=source_name, unavailable=unavailable,
                            max_rounds=max_rounds, jobs=jobs, exts=exts,
-                           sysparm=sysparm)
+                           sysparm=sysparm, producer=PRODUCER)
     with timer.stage("parse"):
         module = parse_asm(source, resolver=pre.resolver(), source_name=source_name,
                            program_name=program_name, margins=margins, sysparm=sysparm)
@@ -121,7 +122,8 @@ def analyze(source: str, *, source_name: str = "<asm>",
     with timer.stage("fetch"):
         analysis.fetch = fetch_dependencies(art, fetcher, dest=dest,
                                             prefetched=pre.store,
-                                            unavailable=unavailable, jobs=jobs)
+                                            unavailable=unavailable, jobs=jobs,
+                                            producer=PRODUCER)
     return analysis
 
 
