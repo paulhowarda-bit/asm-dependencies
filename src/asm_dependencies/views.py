@@ -4,10 +4,11 @@ A consumer that already reads ``jcl-dependencies`` and ``eztrieve-dependencies``
 must be able to read this with the same code, so the structure is not this package's to
 invent:
 
-* seven top-level keys, in order: ``format``, the subject, ``source``, ``note``,
-  ``artifacts``, ``excluded``, ``flags``;
+* top-level keys, in order: ``format``, ``formatVersion``, the subject, ``source``,
+  ``note``, ``artifacts``, ``excluded``, ``flags``. ``formatVersion`` arrived with
+  upstream ledger batch 10 item 30 and is family-wide;
 * the subject key is spelled **``program``** - ``mainframe_artifacts.fetch`` reads
-  ``manifest.get("program") or manifest.get("job")`` to know what NOT to fetch, and a
+  ``subject``, then ``program``/``job``/``region``, to know what NOT to fetch, and a
   manifest keyed ``module`` would silently make the module request itself as its own
   dependency;
 * every artifact row carries ``artifact``, ``kind``, ``dependency``, ``identity`` and one
@@ -33,6 +34,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from mainframe_artifacts.synonyms import FROM_MAP
 
+from . import VIEW_SCHEMA_VERSION
 from . import classify
 from .model import (
     EVIDENCE_DYNAMIC, EVIDENCE_LITERAL, EVIDENCE_TABLE, LAYOUT_REFS, Module,
@@ -114,6 +116,7 @@ def build_asm_artifacts(module: Module, synonyms=None) -> dict:
 
     return {
         "format": FORMAT_ARTIFACTS,
+        "formatVersion": VIEW_SCHEMA_VERSION,
         "program": module.name,
         "source": module.source_name,
         "note": _ARTIFACTS_NOTE,
@@ -498,6 +501,7 @@ def build_asm_lineage(module: Module) -> dict:
     """Every site in source order, with the evidence for each, plus the unresolved set."""
     return {
         "format": FORMAT_LINEAGE,
+        "formatVersion": VIEW_SCHEMA_VERSION,
         "program": module.name,
         "source": module.source_name,
         "note": _LINEAGE_NOTE,

@@ -45,13 +45,14 @@ def lineage():
 # --- the family shape ---------------------------------------------------------------
 
 def test_the_artifacts_view_has_the_family_keys_in_the_family_order(artifacts):
-    assert list(artifacts) == ["format", "program", "source", "note", "provides",
-                               "artifacts", "candidates", "excluded", "flags"]
+    assert list(artifacts) == ["format", "formatVersion", "program", "source", "note",
+                               "provides", "artifacts", "candidates", "excluded",
+                               "flags"]
 
 
 def test_the_lineage_view_starts_and_ends_the_way_the_family_does(lineage):
     keys = list(lineage)
-    assert keys[:4] == ["format", "program", "source", "note"]
+    assert keys[:5] == ["format", "formatVersion", "program", "source", "note"]
     assert keys[-1] == "flags"
 
 

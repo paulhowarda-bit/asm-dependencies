@@ -1,5 +1,6 @@
 {
   "format": "jcl-dependencies-lineage",
+  "formatVersion": 3,
   "job": "PAYRUN",
   "isProc": false,
   "source": "paycalc.jcl",
