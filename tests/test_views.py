@@ -238,3 +238,17 @@ def test_the_binder_takes_a_plain_dict_and_does_not_mutate_it():
     before = json.dumps(manifest, sort_keys=True)
     bind_jcl_ddnames(manifest, lineage)
     assert json.dumps(manifest, sort_keys=True) == before
+
+
+def test_the_manifest_conforms_to_the_written_core():
+    """Upstream ledger batch 10, item 31: the shared row vocabulary is written down in
+    mainframe-artifacts, so this package checks itself against the contract."""
+    from mainframe_artifacts.manifest import validate_manifest
+    from asm_dependencies.parser import parse_asm
+    from asm_dependencies.views import build_asm_artifacts
+    from pathlib import Path
+
+    examples = Path(__file__).resolve().parents[1] / "examples"
+    for path in sorted(examples.glob("*.asm")):
+        module = parse_asm(path.read_text(), source_name=path.name)
+        assert validate_manifest(build_asm_artifacts(module)) == [], path.name
