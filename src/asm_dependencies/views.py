@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence
 
+from mainframe_artifacts.dependents import output_rows
 from mainframe_artifacts.synonyms import FROM_MAP
 
 from . import VIEW_SCHEMA_VERSION
@@ -827,18 +828,6 @@ _DEPENDENTS_NOTE = (
     "concluded - absent here means nobody said, and never that nothing depends on it."
 )
 
-#: The row, camelCased for output. Sorted before emission so two runs against the same
-#: index produce the same bytes whatever order the host's rows arrived in; a capped
-#: answer reports the cap rather than relying on that order to mean anything.
-_DEPENDENT_KEYS = (("name", "name"), ("kind", "kind"),
-                   ("manifest_kind", "manifestKind"), ("via", "via"),
-                   ("match_strength", "matchStrength"), ("detail", "detail"))
-
-
-def _dependent_row(row: Dict[str, Any]) -> dict:
-    return {out: row[key] for key, out in _DEPENDENT_KEYS if row.get(key) is not None}
-
-
 def build_asm_dependents(module: Module, lookup) -> Optional[dict]:
     """What depends on this module, asked once per entry point it provides.
 
@@ -869,9 +858,9 @@ def build_asm_dependents(module: Module, lookup) -> Optional[dict]:
             })
             continue
         row = {"name": name, "kind": provided.get("kind", "entry"),
-               "dependents": sorted((_dependent_row(r) for r in answer.rows),
-                                    key=lambda d: (d["name"], d.get("via", ""),
-                                                   d["kind"])),
+               # camelCased and sorted by the shared serializer: four views emitting
+               # matchStrength three ways is the drift the shared vocabulary prevents.
+               "dependents": output_rows(answer.rows),
                "count": len(answer.rows),
                "suppliedBy": answer.door}
         if answer.truncated:
