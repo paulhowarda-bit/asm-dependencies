@@ -42,6 +42,7 @@ from .model import (
 
 FORMAT_ARTIFACTS = "asm-dependencies-artifacts"
 FORMAT_LINEAGE = "asm-dependencies-lineage"
+FORMAT_DEPENDENTS = "asm-dependencies-dependents"
 
 #: Emission order for the manifest. An unknown kind sorts last rather than crashing.
 _CLASS_ORDER = {
@@ -802,3 +803,101 @@ def bind_jcl_ddnames(manifest: dict, jcl_lineage: dict, *,
             "closed it. A ddname this module sets at run time is deliberately left "
             "unbound.")
     return out
+
+
+# -- the dependents view -----------------------------------------------------------
+#
+# The only view here whose facts do not come from the source. Everything else in this
+# file is a reading of the module in hand; these rows are the estate's answer to a
+# question the module cannot answer about itself, so the view says who supplied them and
+# never merges them into the other two.
+
+_DEPENDENTS_NOTE = (
+    "What the ESTATE says depends on this module - the reverse of every other view here, "
+    "and the half a module's own source cannot contain. Supplied by the host through "
+    "--dependents-map or --dependents-resolver and reported as given: 'suppliedBy' says "
+    "which door answered. Rows attach to the ENTRY POINT a dependent named, not to the "
+    "module, because a call to an entry point whose name differs from the member name is "
+    "exactly the case that is otherwise unresolvable. 'matchStrength' says how well the "
+    "host matched the name it was asked about, and is a field rather than prose because "
+    "aggregating it into a sentence loses it. A capped answer carries 'truncated' with "
+    "the true 'total', so a shortened list never reads as a complete one. 'unanswered' "
+    "is the honest half: an entry point the lookup does not cover, or did not reach "
+    "because it failed. Nothing depending on an entry point in 'unanswered' can be "
+    "concluded - absent here means nobody said, and never that nothing depends on it."
+)
+
+#: The row, camelCased for output. Sorted before emission so two runs against the same
+#: index produce the same bytes whatever order the host's rows arrived in; a capped
+#: answer reports the cap rather than relying on that order to mean anything.
+_DEPENDENT_KEYS = (("name", "name"), ("kind", "kind"),
+                   ("manifest_kind", "manifestKind"), ("via", "via"),
+                   ("match_strength", "matchStrength"), ("detail", "detail"))
+
+
+def _dependent_row(row: Dict[str, Any]) -> dict:
+    return {out: row[key] for key, out in _DEPENDENT_KEYS if row.get(key) is not None}
+
+
+def build_asm_dependents(module: Module, lookup) -> Optional[dict]:
+    """What depends on this module, asked once per entry point it provides.
+
+    ``None`` when no lookup was supplied - and that is the whole point of the return
+    type. An empty answer would read as "nothing in the estate depends on this module",
+    which is a claim about the estate that a run nobody told anything is not entitled to
+    make. The CLI writes nothing at all in that case, so a run with no door produces
+    exactly the files it always did.
+    """
+    if lookup is None or not lookup.supplied:
+        return None
+
+    entries: List[dict] = []
+    unanswered: List[dict] = []
+    provides = _provides(module) or (
+        [{"name": module.name, "kind": "module"}] if module.name else [])
+    for provided in provides:
+        name = provided["name"]
+        answer = lookup(name, "program")
+        if answer is None:
+            # Three different absences, kept apart: the lookup broke earlier in this run,
+            # or it was asked and does not cover this name.
+            unanswered.append({
+                "name": name,
+                "reason": ("the lookup failed earlier in this run and was not asked again"
+                           if lookup.disabled_reason else
+                           "the lookup does not cover this name"),
+            })
+            continue
+        row = {"name": name, "kind": provided.get("kind", "entry"),
+               "dependents": sorted((_dependent_row(r) for r in answer.rows),
+                                    key=lambda d: (d["name"], d.get("via", ""),
+                                                   d["kind"])),
+               "count": len(answer.rows),
+               "suppliedBy": answer.door}
+        if answer.truncated:
+            row["truncated"] = True
+            if answer.total is not None:
+                row["total"] = answer.total
+        entries.append(row)
+
+    flags = []
+    if lookup.disabled_reason:
+        flags.append(
+            "dependents lookup failed mid-run ({0}); entry points it did not reach stay "
+            "unanswered - fix the lookup and re-run".format(lookup.disabled_reason))
+    if lookup.map_warning:
+        flags.append(
+            "part of the dependents map could not be read ({0}); the entries it did read "
+            "answered normally".format(lookup.map_warning))
+
+    return {
+        "format": FORMAT_DEPENDENTS,
+        "formatVersion": VIEW_SCHEMA_VERSION,
+        "program": module.name,
+        "source": module.source_name,
+        "note": _DEPENDENTS_NOTE,
+        "suppliedBy": lookup.describe(),
+        "entries": entries,
+        "unanswered": unanswered,
+        "flags": flags,
+    }

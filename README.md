@@ -190,6 +190,36 @@ hundred programs an empty manifest.
   step's `SYSLIB`), and `SETAF`/`SETCF`, `AREAD` and `AINSERT`, which reach outside the
   conditional-assembly language entirely.
 
+## The reverse direction, when a host can supply it
+
+Everything above is what this module *names*. The opposite question — *what depends on
+this module* — cannot be answered from its source at all: which modules call one of its
+entry points is a fact about the estate, held in an index only the host can read. So it
+arrives through a door rather than being derived, exactly the way Db2 synonym knowledge
+does:
+
+```bash
+asm-dependencies paycalc.asm --dependents-map dependents.json
+asm-dependencies paycalc.asm --dependents-resolver mycatalog:who_calls
+```
+
+The map is a JSON object keyed `"NAME|KIND"` whose values are lists of dependents rows;
+the resolver is a callable asked at the point of need. Supply either and a third view,
+`<module>.asm.dependents.json`, is written; supply neither and **nothing is written**,
+because "nobody told us" and "nothing depends on it" are different answers and only one
+of them is a claim about the estate.
+
+Rows attach to the **entry point** a dependent named rather than to the module, which is
+the case that matters here: a call to an entry point whose name differs from the member
+name is otherwise unresolvable even when the index holds the answer. An entry point the
+lookup does not cover, or did not reach because it failed, is listed under `unanswered`
+with the reason — never as an empty list of dependents. A capped answer carries
+`truncated` with the true `total`, so a shortened list never reads as a complete one.
+
+A `--gather-only` run records what the lookup answered into the estate bundle, and
+`--from-bundle` replays it, so the reverse direction is reproducible off the network like
+everything else here.
+
 ## The one place it meets the JCL tool
 
 `bind_jcl_ddnames(manifest, jcl_lineage)` resolves this module's ddnames against a JCL

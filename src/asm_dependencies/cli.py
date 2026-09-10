@@ -11,8 +11,9 @@ from typing import List, Optional
 
 from mainframe_artifacts.artifact_service import decode_member, load_fetcher
 from mainframe_artifacts.bundle import open_bundle
-from mainframe_artifacts.cliargs import (add_logging_args, add_output_args,
-                                         add_retrieval_args, add_synonym_args,
+from mainframe_artifacts.cliargs import (add_dependents_args, add_logging_args,
+                                         add_output_args, add_retrieval_args,
+                                         add_synonym_args, dependents_lookup,
                                          jobs as _jobs, synonym_lookup)
 from mainframe_artifacts.errors import CobolXstateError
 from mainframe_artifacts.logging_setup import PACKAGE_LOGGER as CORE_LOGGER
@@ -32,7 +33,9 @@ from .views import JCL_LINEAGE_FORMAT, bind_jcl_ddnames
 # would be silently dropped).
 _log = logging.getLogger("asm_dependencies.cli")
 
-_SUFFIXES = (".asm.artifacts.json", ".asm.lineage.json",
+# The dependents view is not a --target choice: it is not a view you ask for, it is an
+# answer you were given, so it is written exactly when a lookup supplied one.
+_SUFFIXES = (".asm.artifacts.json", ".asm.lineage.json", ".asm.dependents.json",
              ".asm.prefetch.json", ".asm.fetch.json")
 
 
@@ -90,6 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "a complete closure.")
     add_retrieval_args(p)
     add_synonym_args(p)
+    add_dependents_args(p)
     add_output_args(p, outdir_help=(
         "directory for output (default: ./out). EVERY file this run produces goes here, "
         "exactly as given with nothing appended - both views, both retrieval reports, and "
@@ -206,6 +210,11 @@ def _run(args, timing_sink=None) -> int:
         _log.error(f"error: {why_synonyms}")
         return 2
 
+    reverse, why_dependents = dependents_lookup(args)
+    if why_dependents:
+        _log.error(f"error: {why_dependents}")
+        return 2
+
     fetcher, why_service = (None, None) if bundle is not None \
         else _service(args, source_name)
 
@@ -223,7 +232,10 @@ def _run(args, timing_sink=None) -> int:
                           dest=args.gather_only, unavailable=why_service,
                           sysparm=args.sysparm, margins=margins,
                           exts=tuple(args.macro_ext), max_rounds=args.max_rounds,
-                          jobs=_jobs(args))
+                          jobs=_jobs(args),
+                          dependents=reverse.mapping if reverse is not None else None,
+                          dependents_resolver=(reverse.resolver if reverse is not None
+                                               else None))
         _log.info("[{0}] wrote estate bundle {1}".format(source_name, gathered))
         _log.info("[{0}] model from it with: --from-bundle {1}".format(
             source_name, args.gather_only))
@@ -237,7 +249,10 @@ def _run(args, timing_sink=None) -> int:
                        exts=tuple(args.macro_ext), max_rounds=args.max_rounds,
                        jobs=_jobs(args), timer=timer,
                        synonyms=lookup.mapping if lookup is not None else None,
-                       synonym_resolver=lookup.resolver if lookup is not None else None)
+                       synonym_resolver=lookup.resolver if lookup is not None else None,
+                       dependents=reverse.mapping if reverse is not None else None,
+                       dependents_resolver=(reverse.resolver if reverse is not None
+                                            else None))
     module = analysis.module
     base = default_stem or module.name or "module"
 
@@ -260,6 +275,9 @@ def _run(args, timing_sink=None) -> int:
     written = {
         ".asm.artifacts.json": artifacts,
         ".asm.lineage.json": analysis.lineage() if "lineage" in wanted else None,
+        # None when no door was opened, and the loop below writes nothing for a None -
+        # so a run nobody told anything produces exactly the files it always did.
+        ".asm.dependents.json": analysis.dependents(),
         ".asm.prefetch.json": analysis.prefetch.report(),
         ".asm.fetch.json": analysis.fetch,
     }

@@ -33,6 +33,36 @@ def test_a_default_run_writes_both_views_and_both_retrieval_reports(tmp_path):
                                  "paycalc.asm.lineage.json", "paycalc.asm.prefetch.json"]
 
 
+def test_a_default_run_writes_no_dependents_view(tmp_path):
+    """Nobody was asked, so nothing is said - not even an empty answer."""
+    run([str(EXAMPLES / "paycalc.asm"), "--outdir", str(tmp_path), "-q", "--no-fetch"])
+    assert "paycalc.asm.dependents.json" not in written(tmp_path)
+
+
+def test_a_dependents_map_is_written_as_its_own_view(tmp_path):
+    dep = tmp_path / "dependents.json"
+    dep.write_text(json.dumps({
+        "PAYCALC|program": [{"name": "BILLRUN", "kind": "MODULE", "via": "CALL",
+                             "match_strength": "qualified"}]}), encoding="utf-8")
+    rc = run([str(EXAMPLES / "paycalc.asm"), "--outdir", str(tmp_path), "-q",
+              "--no-fetch", "--dependents-map", str(dep)])
+    assert rc == 0
+    view = json.loads((tmp_path / "paycalc.asm.dependents.json").read_text(
+        encoding="utf-8"))
+    assert view["format"] == "asm-dependencies-dependents"
+    named = [row for row in view["entries"] if row["name"] == "PAYCALC"]
+    assert [d["name"] for d in named[0]["dependents"]] == ["BILLRUN"]
+    # ...and the other two views are untouched by it.
+    assert "dependents" not in json.loads(
+        (tmp_path / "paycalc.asm.artifacts.json").read_text(encoding="utf-8"))
+
+
+def test_a_dependents_map_that_will_not_open_is_an_operator_error(tmp_path):
+    rc = run([str(EXAMPLES / "paycalc.asm"), "--outdir", str(tmp_path), "-q",
+              "--no-fetch", "--dependents-map", str(tmp_path / "missing.json")])
+    assert rc == 2
+
+
 def test_target_narrows_what_is_written(tmp_path):
     run([str(EXAMPLES / "paycalc.asm"), "--outdir", str(tmp_path), "-q", "--no-fetch",
          "--target", "artifacts"])

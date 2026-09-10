@@ -147,6 +147,14 @@ CL8'PAYCALC'` plus `MVC PGMNAME,SELECTED` means the constant is not what the fie
 the call. Reporting `PAYCALC` there is not merely incomplete — it is confidently wrong,
 which is worse, because nothing about the output invites a second look.
 
+**The dependents view is the only output whose facts are not in the source.** It is the
+host's answer to a question the module cannot answer about itself, so it stays its own
+view: never merged into `artifacts` or `lineage`, always saying which door supplied it,
+and absent altogether when no door was opened. `None` from `ModuleAnalysis.dependents()`
+means nobody was asked; an empty `dependents` list on an entry means the index was asked
+and nothing depends on it; an entry under `unanswered` means neither. Collapsing any two
+of those three would put a claim about the estate into a run that has no basis for it.
+
 **An EXEC command is lexed by different rules, and the lexer owns them.** `EXEC CICS` and
 `EXEC SQL` are a preprocessor's language in the operand field: blank-separated operands, no
 remarks field, and (for CICS) a continue column of 2 rather than 16. `lexer.is_exec` and
