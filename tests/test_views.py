@@ -253,3 +253,68 @@ def test_the_manifest_conforms_to_the_written_core():
     for path in sorted(examples.glob("*.asm")):
         module = parse_asm(path.read_text(), source_name=path.name)
         assert validate_manifest(build_asm_artifacts(module)) == [], path.name
+
+
+# --- storage: the labelled DC/DS items the module declares -------------------------
+
+def _storage(*rows, resolver=None):
+    return build_asm_lineage(parse_asm(module(*rows), resolver=resolver))["storage"]
+
+
+def test_a_csect_publishes_each_labelled_storage_item_with_its_section():
+    rows = _storage(("PAYCALC", "CSECT"), ("WORKA", "DS", "CL8"), ("WORKB", "DS", "F"),
+                    ("", "END"))
+    assert rows == [
+        {"field": "WORKA", "line": 2, "operand": "CL8", "section": "PAYCALC"},
+        {"field": "WORKB", "line": 3, "operand": "F", "section": "PAYCALC"},
+    ]
+
+
+def test_a_dsect_publishes_its_items_under_the_dsect():
+    """A mapping DSECT is where a caller's parameter block is described."""
+    rows = _storage(("PAYCALC", "CSECT"), ("PARMS", "DSECT"), ("PARMKEY", "DS", "CL6"),
+                    ("PARMAMT", "DS", "PL5"), ("", "END"))
+    assert [(r["field"], r["section"], r["operand"]) for r in rows] == [
+        ("PARMKEY", "PARMS", "CL6"), ("PARMAMT", "PARMS", "PL5")]
+
+
+def test_an_unlabelled_ds_is_not_an_addressable_item_and_is_not_published():
+    rows = _storage(("P", "CSECT"), ("", "DS", "CL4"), ("KEEP", "DS", "CL2"), ("", "END"))
+    assert [r["field"] for r in rows] == ["KEEP"]
+
+
+def test_a_table_of_constants_publishes_every_value():
+    rows = _storage(("P", "CSECT"), ("PGMTAB", "DC", "CL8'PAY001',CL8'PAY002'"),
+                    ("", "END"))
+    assert rows[0]["values"] == ["PAY001  ", "PAY002  "]
+
+
+def test_a_storage_item_without_a_value_carries_no_values_key():
+    """Presence-only, like the family's other optional keys: a DS initialises nothing."""
+    rows = _storage(("P", "CSECT"), ("WORK", "DS", "CL8"), ("", "END"))
+    assert "values" not in rows[0] and "inMember" not in rows[0]
+
+
+def test_a_copied_storage_item_names_the_member_it_came_from():
+    """The same `inMember` the section rows and every touch carry: the item is declared
+    in the member, which is the identity a second module COPYing it shares."""
+    lib = {"PAYPARM": module(("PARMKEY", "DS", "CL6"))}
+    rows = _storage(("P", "CSECT"), ("", "COPY", "PAYPARM"), ("", "END"),
+                    resolver=lambda name: lib.get(name.upper()))
+    assert rows == [{"field": "PARMKEY", "line": 1, "operand": "CL6", "section": "P",
+                     "inMember": "PAYPARM"}]
+
+
+def test_a_zero_length_label_is_published_as_written_not_reinterpreted():
+    """`PAYINIT DS 0H` is an entry point's label, not storage. The row says `0H` and
+    nothing more: deciding which zero-length labels are code would be a guess."""
+    rows = _storage(("P", "CSECT"), ("", "ENTRY", "PAYINIT"), ("PAYINIT", "DS", "0H"),
+                    ("", "END"))
+    assert rows == [{"field": "PAYINIT", "line": 3, "operand": "0H", "section": "P"}]
+
+
+def test_a_module_with_no_labelled_storage_publishes_an_empty_list():
+    """Every list in this view is present when empty - the parser always looked, so an
+    empty list is the answer "none declared", not "not asked"."""
+    assert _storage(("P", "CSECT"), ("", "LINK", "EP=X"), ("", "END")) == []
+    assert "storage" in build_asm_lineage(parse_asm(module(("P", "CSECT"), ("", "END"))))

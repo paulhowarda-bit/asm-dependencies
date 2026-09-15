@@ -509,6 +509,7 @@ def build_asm_lineage(module: Module) -> dict:
         "note": _LINEAGE_NOTE,
         "provides": _provides(module),
         "sections": [_section_row(s) for s in module.sections],
+        "storage": [_storage_row(d) for d in module.data],
         "calls": [_call_row(c) for c in module.invocations],
         "externals": [_external_row(e) for e in module.externals],
         "files": [_file_row(f) for f in module.files],
@@ -533,6 +534,22 @@ def _section_row(section) -> dict:
         row["inMember"] = section.origin
     if not section.is_visible:
         row["externallyVisible"] = False
+    return row
+
+
+def _storage_row(item) -> dict:
+    """One labelled DC/DS, as the parser recorded it. No offset and no length: nothing
+    computes them, and deriving them means modelling duplication factors, type-implied
+    lengths, alignment and ORG. ``operand`` is the declaration as written, so a zero-length
+    ``DS 0H`` - often a code label rather than storage - reads as exactly that."""
+    row: Dict[str, Any] = {"field": item.label, "line": item.line,
+                           "operand": item.operand}
+    if item.section:
+        row["section"] = item.section
+    if item.values:
+        row["values"] = list(item.values)
+    if item.origin:
+        row["inMember"] = item.origin
     return row
 
 

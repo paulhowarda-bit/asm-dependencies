@@ -166,6 +166,14 @@ own list. A dispatch table's entries are not proven dependencies; listing them a
 artifacts would overclaim, and listing them nowhere would give a module that dispatches a
 hundred programs an empty manifest.
 
+**Declared storage** — the lineage view's `storage` lists every labelled `DC`/`DS`, in
+source order, as `{field, line, operand}` plus `section`, `values` (the character
+constants a `DC` initialises it with) and `inMember` (the `COPY` member or macro it was
+assembled from) when there are any. An unlabelled `DS` is padding and is not listed. There
+is no offset or length: nothing here computes duplication factors, type-implied lengths,
+alignment or `ORG`, so `operand` is the declaration as written — which is also why a
+`PAYINIT DS 0H` entry label is listed as `0H` rather than silently told apart from storage.
+
 ## Honest limits, all in `flags` rather than guessed
 
 * **Columns 1–71**, continuation in 72 resuming at 16. A non-sequence tail past the margin
