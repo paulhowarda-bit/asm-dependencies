@@ -234,6 +234,12 @@ everything else here.
 job's `ddBindings`. It takes a plain **dict** and returns one, so this package imports
 nothing from the JCL side.
 
+A ddname the step **concatenates** arrives from `jcl-dependencies` as one `ddBindings` row
+per dataset, each with its `concatIndex`. That is one answer, not several: the file row
+gains `datasets`, the list in read order, in place of `dataset`, and each `boundBy` entry
+keeps its `concatIndex`. `datasetCandidates` stays what it was - the ddname bound to
+different data in different steps.
+
 Finding *which* step is simpler here than on the Easytrieve side, and worth stating: an
 Easytrieve step runs `PGM=EZTPA00` — the interpreter — so the step's program name cannot
 identify which program runs. An assembler module **is** the load module, so `EXEC PGM=`

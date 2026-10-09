@@ -318,3 +318,31 @@ def test_a_module_with_no_labelled_storage_publishes_an_empty_list():
     empty list is the answer "none declared", not "not asked"."""
     assert _storage(("P", "CSECT"), ("", "LINK", "EP=X"), ("", "END")) == []
     assert "storage" in build_asm_lineage(parse_asm(module(("P", "CSECT"), ("", "END"))))
+
+
+def test_a_concatenated_ddname_is_one_answer_listed_in_read_order():
+    """jcl-dependencies publishes a concatenated DD as one binding per dataset, each with
+    its ``concatIndex``. One step binding a ddname to several datasets is one file read
+    from each in turn - it was reported as the module running against different data in
+    different steps, with the read order sorted away."""
+    lineage = {"format": "jcl-dependencies-lineage", "job": "J", "source": "j.jcl",
+               "ddBindings": [
+                   {"program": "PAYCALC", "step": "S1", "ddname": "CUSTMAST",
+                    "concatIndex": 1, "dataset": "PROD.CUSTOMER.WEST", "io": "input"},
+                   {"program": "PAYCALC", "step": "S1", "ddname": "CUSTMAST",
+                    "concatIndex": 2, "dataset": "PROD.CUSTOMER.EAST", "io": "input"}]}
+    bound = bind_jcl_ddnames(build_asm_artifacts(parse_asm(SAMPLE)), lineage)
+    row = next(r for r in bound["artifacts"] if r.get("ddname") == "CUSTMAST")
+    assert row["datasets"] == ["PROD.CUSTOMER.WEST", "PROD.CUSTOMER.EAST"]
+    assert "dataset" not in row and "datasetCandidates" not in row
+    assert [e["concatIndex"] for e in row["boundBy"]] == [1, 2]
+    assert "needs" not in row
+    assert not any("different datasets" in f for f in bound["flags"])
+
+    lineage["ddBindings"].append(
+        {"program": "PAYCALC", "step": "S2", "ddname": "CUSTMAST",
+         "dataset": "PROD.CUSTOMER.WEST", "io": "input"})
+    bound = bind_jcl_ddnames(build_asm_artifacts(parse_asm(SAMPLE)), lineage)
+    row = next(r for r in bound["artifacts"] if r.get("ddname") == "CUSTMAST")
+    assert row["datasetCandidates"] == ["PROD.CUSTOMER.EAST", "PROD.CUSTOMER.WEST"]
+    assert "dataset" not in row and "datasets" not in row
