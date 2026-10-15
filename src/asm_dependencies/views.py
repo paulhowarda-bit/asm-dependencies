@@ -713,7 +713,7 @@ def jcl_steps_running(manifest: dict, jcl_lineage: dict) -> List[str]:
     steps: List[str] = []
     for binding in jcl_lineage.get("ddBindings", []) or []:
         step = binding.get("step")
-        if step and str(binding.get("program", "")).upper() in names \
+        if step and str(binding.get("program") or "").upper() in names \
                 and step not in steps:
             steps.append(step)
     return steps

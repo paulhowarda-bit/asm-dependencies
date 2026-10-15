@@ -346,3 +346,14 @@ def test_a_concatenated_ddname_is_one_answer_listed_in_read_order():
     row = next(r for r in bound["artifacts"] if r.get("ddname") == "CUSTMAST")
     assert row["datasetCandidates"] == ["PROD.CUSTOMER.EAST", "PROD.CUSTOMER.WEST"]
     assert "dataset" not in row and "datasets" not in row
+
+
+def test_a_step_whose_program_is_unknown_runs_no_module_named_none():
+    """jcl-dependencies binds the DDs of a step whose PROC the estate does not hold, with
+    `program: null`. Read as a string, that null was a program named NONE."""
+    from asm_dependencies.views import jcl_steps_running
+
+    lineage = {"format": "jcl-dependencies-lineage", "ddBindings": [
+        {"program": None, "step": "S1", "ddname": "SYSIN", "dataset": "PROD.CARDS",
+         "io": "input"}]}
+    assert jcl_steps_running({"program": "NONE", "provides": []}, lineage) == []
